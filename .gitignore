@@ -1,0 +1,33 @@
+/backend/private_exports/
+
+# Secrets and local configuration
+**/.env
+**/.env.*
+!**/.env.example
+
+# Local uploads, generated exports, and user data
+**/uploads/
+**/private_exports/
+*.xlsx
+*.vcf
+
+# Python environments and generated files
+**/venv/
+**/.venv/
+**/__pycache__/
+*.py[cod]
+**/.pytest_cache/
+*.log
+
+# JavaScript dependencies and build output
+**/node_modules/
+**/.next/
+**/out/
+**/coverage/
+*.tsbuildinfo
+
+# Local editor and operating-system files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
