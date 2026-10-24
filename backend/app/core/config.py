@@ -23,7 +23,11 @@ class Settings(BaseSettings):
 
     # File uploads
     UPLOAD_DIR: str = "uploads"
+    EXPORT_DIR: str = "private_exports"
     MAX_FILE_SIZE_MB: int = 10
+
+    # Browser origins allowed to call the API (comma-separated)
+    CORS_ORIGINS: str = ""
 
     # OCR
     OCR_LANGUAGE: str = "en"

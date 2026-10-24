@@ -12,6 +12,7 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.worksheet.table import Table, TableStyleInfo
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.models.business_card import BusinessCard
 
 logger = logging.getLogger(__name__)
@@ -33,8 +34,7 @@ HEADERS = [
 
 def master_workbook_path(owner_id: int) -> Path:
     # Keep private exports outside the publicly mounted uploads directory.
-    backend_root = Path(__file__).resolve().parents[2]
-    return backend_root / "private_exports" / str(owner_id) / "Master_Contacts.xlsx"
+    return Path(settings.EXPORT_DIR) / str(owner_id) / "Master_Contacts.xlsx"
 
 
 def _spreadsheet_text(value: Optional[str]) -> str:

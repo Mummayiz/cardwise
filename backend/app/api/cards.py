@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, UploadFile, File, Query
+from fastapi import APIRouter, Depends, UploadFile, File, Query, HTTPException
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from app.db.database import get_db
@@ -12,6 +13,7 @@ from app.services import card_service
 from app.ocr.ocr_engine import extract_text_from_image
 from app.ocr.card_parser import parse_card
 import os, shutil, uuid
+from pathlib import Path
 from app.core.config import settings
 
 router = APIRouter(prefix="/cards", tags=["Business Cards"])
@@ -69,12 +71,35 @@ async def upload_and_create_card(
         twitter=ocr_result.twitter,
     )
     card = card_service.create_card(db, card_data, current_user.id)
-    card.image_path = filepath
+    card.image_path = filename
     card.raw_ocr_text = raw_text
     card.ocr_confidence = ocr_result.confidence
     db.commit()
     db.refresh(card)
     return card
+
+
+@router.get("/{card_id}/image")
+def get_card_image(
+    card_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    card = card_service.get_card(db, card_id, current_user.id)
+    if not card.image_path:
+        raise HTTPException(status_code=404, detail="Card image not found")
+
+    upload_root = Path(settings.UPLOAD_DIR).resolve()
+    stored_path = Path(card.image_path)
+    image_path = stored_path if stored_path.is_absolute() else upload_root / stored_path.name
+    image_path = image_path.resolve()
+    try:
+        image_path.relative_to(upload_root)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="Card image not found") from exc
+    if not image_path.is_file():
+        raise HTTPException(status_code=404, detail="Card image not found")
+    return FileResponse(image_path, filename=image_path.name)
 
 
 @router.get("/", response_model=List[BusinessCardResponse])
