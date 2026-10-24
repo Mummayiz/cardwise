@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, UploadFile, File, Query, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from app.db.database import get_db
@@ -12,9 +12,9 @@ from app.schemas.business_card import (
 from app.services import card_service
 from app.ocr.ocr_engine import extract_text_from_image
 from app.ocr.card_parser import parse_card
-import os, shutil, uuid
 from pathlib import Path
 from app.core.config import settings
+from app.models.card_image import CardImage
 
 router = APIRouter(prefix="/cards", tags=["Business Cards"])
 
@@ -44,15 +44,10 @@ async def upload_and_create_card(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    # Save image
-    os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
-    ext = os.path.splitext(file.filename)[-1]
-    filename = f"{uuid.uuid4()}{ext}"
-    filepath = os.path.join(settings.UPLOAD_DIR, filename)
-
-    image_bytes = await file.read()
-    with open(filepath, "wb") as f:
-        f.write(image_bytes)
+    max_bytes = settings.MAX_FILE_SIZE_MB * 1024 * 1024
+    image_bytes = await file.read(max_bytes + 1)
+    if len(image_bytes) > max_bytes:
+        raise HTTPException(status_code=413, detail=f"Image exceeds the {settings.MAX_FILE_SIZE_MB} MB limit")
 
     # OCR + parse
     raw_text, confidence = extract_text_from_image(image_bytes)
@@ -70,8 +65,7 @@ async def upload_and_create_card(
         linkedin=ocr_result.linkedin,
         twitter=ocr_result.twitter,
     )
-    card = card_service.create_card(db, card_data, current_user.id)
-    card.image_path = filename
+    card = card_service.create_card(db, card_data, current_user.id, image_bytes=image_bytes)
     card.raw_ocr_text = raw_text
     card.ocr_confidence = ocr_result.confidence
     db.commit()
@@ -88,6 +82,23 @@ def get_card_image(
     card = card_service.get_card(db, card_id, current_user.id)
     if not card.image_path:
         raise HTTPException(status_code=404, detail="Card image not found")
+
+    if card.image_path.startswith("db:"):
+        stored_image = (
+            db.query(CardImage)
+            .filter(
+                CardImage.card_id == card.id,
+                CardImage.owner_id == current_user.id,
+            )
+            .first()
+        )
+        if not stored_image:
+            raise HTTPException(status_code=404, detail="Card image not found")
+        return Response(
+            content=stored_image.image_data,
+            media_type=stored_image.content_type,
+            headers={"Cache-Control": "private, no-store"},
+        )
 
     upload_root = Path(settings.UPLOAD_DIR).resolve()
     stored_path = Path(card.image_path)

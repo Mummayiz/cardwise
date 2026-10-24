@@ -5,6 +5,7 @@ import os
 from app.core.config import settings
 from app.db.database import Base, engine
 from app.api import auth, cards, groups, exports
+import app.models.card_image  # Register the private card-image table before create_all.
 
 # Create all tables
 Base.metadata.create_all(bind=engine)

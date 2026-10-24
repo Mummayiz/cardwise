@@ -5,11 +5,12 @@ This deployment is intended for a small, infrequently used personal app. Free-ti
 ## Architecture
 
 - **Vercel:** Next.js frontend. Hobby is only for personal, non-commercial use; confirm this fits your use.
-- **Railway:** FastAPI/OCR API, using the Dockerfile in `backend/` and a persistent volume mounted at `/data`.
-- **Neon:** managed PostgreSQL. Contacts live in the database, not on Railway's ephemeral filesystem.
-- **Railway volume:** uploaded card images, downloaded EasyOCR models, and the private generated workbook.
+- **Railway:** FastAPI/OCR API, using the Dockerfile in `backend/`. A small volume mounted at `/data` can cache EasyOCR models and workbook files.
+- **Neon:** managed PostgreSQL. Contacts and compressed original card images are stored in PostgreSQL, not on Railway's filesystem.
 
 Railway's Free plan currently provides a limited monthly usage credit and limited per-service resources. If the credit runs out, workloads can stop. Keep the service within the Free plan and monitor usage. OCR may exceed the available memory; test a real scan before relying on this deployment.
+
+Railway documents that volumes created during its trial can be deleted after trial credits expire. Therefore, the Railway volume is only a cache: the database remains the durable source for contact and image data. If the OCR cache volume is removed, the OCR models must be downloaded again. The generated Excel file can be recreated from PostgreSQL.
 
 ## 1. Create the Neon database
 
@@ -21,7 +22,7 @@ Railway's Free plan currently provides a limited monthly usage credit and limite
 
 1. Create a Railway project from the GitHub repository `Mummayiz/cardwise` and select branch `main`.
 2. Set the service **Root Directory** to `/backend` so Railway builds `backend/Dockerfile`.
-3. Add a Railway volume mounted at `/data`. This is needed for card images, OCR model downloads, and generated workbooks. The Free plan's volume limit is small, so watch usage.
+3. Add a Railway volume mounted at `/data` only if you want to cache OCR models and workbook files. This is disposable cache, not the sole copy of user data. The Free plan's volume limit is small, so watch usage.
 4. Add these service variables in Railway (values are private; never paste them in chat):
 
    | Variable | Value |
@@ -50,7 +51,7 @@ Railway's Free plan currently provides a limited monthly usage credit and limite
 1. Register and sign in.
 2. Scan one test card and confirm the contact is saved.
 3. Download Excel and VCF.
-4. Restart/redeploy the API and confirm contacts remain in Neon and the image/workbook files remain on the Railway volume.
+4. Restart/redeploy the API and confirm contacts and card images remain in Neon. Download Excel and confirm it regenerates from the database.
 5. Test another scan after the API has gone idle. Record cold-start delay and check Railway memory/usage. If the OCR process runs out of memory or the Free credit is insufficient, stop before uploading real contacts.
 
 ## Local Docker Compose

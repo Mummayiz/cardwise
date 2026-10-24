@@ -4,13 +4,31 @@ from typing import List, Optional
 from app.models.business_card import BusinessCard, Group
 from app.schemas.business_card import BusinessCardCreate, BusinessCardUpdate, GroupCreate, GroupUpdate
 from app.exports.workbook import refresh_master_workbook
+from app.models.card_image import CardImage
+from app.services.image_service import compress_card_image
 
 
 # ── Business Card CRUD ──────────────────────────────────────────────────────
 
-def create_card(db: Session, card_data: BusinessCardCreate, owner_id: int) -> BusinessCard:
+def create_card(
+    db: Session,
+    card_data: BusinessCardCreate,
+    owner_id: int,
+    image_bytes: Optional[bytes] = None,
+) -> BusinessCard:
     card = BusinessCard(**card_data.model_dump(), owner_id=owner_id)
     db.add(card)
+    if image_bytes is not None:
+        db.flush()
+        image = CardImage(
+            card_id=card.id,
+            owner_id=owner_id,
+            content_type="image/jpeg",
+            image_data=compress_card_image(image_bytes),
+        )
+        db.add(image)
+        db.flush()
+        card.image_path = f"db:{image.id}"
     db.commit()
     db.refresh(card)
     refresh_master_workbook(db, owner_id)
